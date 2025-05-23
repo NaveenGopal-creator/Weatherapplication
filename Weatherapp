@@ -1,0 +1,926 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_datetime_picker_plus/flutter_datetime_picker_plus.dart' as dtp;
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'dart:math' as math;
+
+void main() {
+  runApp(const WeatherApp());
+}
+
+class WeatherApp extends StatelessWidget {
+  const WeatherApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Weather App',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        fontFamily: 'Montserrat',
+      ),
+      home: const WelcomePage(),
+    );
+  }
+}
+
+class WelcomePage extends StatefulWidget {
+  const WelcomePage({Key? key}) : super(key: key);
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  String? userName;
+  String? mobileNumber;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _mobileController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  Future<void> _loadUserInfo() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? savedName = prefs.getString('userName');
+    String? savedMobile = prefs.getString('mobileNumber');
+    if (savedName != null && savedMobile != null) {
+      setState(() {
+        userName = savedName;
+        mobileNumber = savedMobile;
+      });
+    }
+  }
+
+  Future<void> _saveUserInfo() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userName', _nameController.text);
+    await prefs.setString('mobileNumber', _mobileController.text);
+
+    setState(() {
+      userName = _nameController.text;
+      mobileNumber = _mobileController.text;
+    });
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WeatherInputPage(userName: userName!),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return userName == null
+        ? UserInfoPage(
+      nameController: _nameController,
+      mobileController: _mobileController,
+      saveUserInfo: _saveUserInfo,
+    )
+        : WeatherInputPage(userName: userName!);
+  }
+}
+
+class UserInfoPage extends StatefulWidget {
+  final TextEditingController nameController;
+  final TextEditingController mobileController;
+  final Function saveUserInfo;
+
+  const UserInfoPage({
+    Key? key,
+    required this.nameController,
+    required this.mobileController,
+    required this.saveUserInfo,
+  }) : super(key: key);
+
+  @override
+  _UserInfoPageState createState() => _UserInfoPageState();
+}
+
+class _UserInfoPageState extends State<UserInfoPage> {
+  String? nameError;
+  String? mobileError;
+
+  void validateInputs() {
+    setState(() {
+      nameError = (widget.nameController.text.isEmpty ||
+          widget.nameController.text.length > 30)
+          ? 'Name must be 1-30 characters'
+          : null;
+
+      mobileError = (widget.mobileController.text.length != 10 ||
+          !RegExp(r'^[0-9]+$').hasMatch(widget.mobileController.text))
+          ? 'Enter a valid 10-digit mobile number'
+          : null;
+    });
+
+    if (nameError == null && mobileError == null) {
+      widget.saveUserInfo();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.deepPurple.shade900, Colors.indigo.shade600],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Adding 3D Effect using Blur & Shadows
+            Positioned(
+              top: -100,
+              left: -100,
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [Colors.blueAccent.withOpacity(0.3), Colors.transparent],
+                    radius: 0.9,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -150,
+              right: -100,
+              child: Container(
+                width: 350,
+                height: 350,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [Colors.purpleAccent.withOpacity(0.3), Colors.transparent],
+                    radius: 1.0,
+                  ),
+                ),
+              ),
+            ),
+
+            // Main Content
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Welcome!',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 8,
+                            offset: Offset(3, 3),
+                          )
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // Input Fields
+                    _buildTextField(widget.nameController, 'Enter Your Name', Icons.person, nameError),
+                    const SizedBox(height: 20),
+                    _buildTextField(widget.mobileController, 'Enter Your Mobile Number', Icons.phone, mobileError),
+                    const SizedBox(height: 30),
+
+                    // Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: validateInputs,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orangeAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 10,
+                          shadowColor: Colors.black,
+                        ),
+                        child: const Text(
+                          'Save and Continue',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, String? errorText) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        hintText: hint,  // Placeholder text inside the field
+        hintStyle: TextStyle(color: Colors.white70, fontSize: 16), // Keep it visible
+        errorText: errorText,
+        prefixIcon: Icon(icon, color: Colors.white),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.2),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      style: const TextStyle(color: Colors.white, fontSize: 18), // Increased text size
+      keyboardType: hint.contains("Mobile") ? TextInputType.phone : TextInputType.text,
+    );
+  }
+
+}
+
+
+
+
+class WeatherInputPage extends StatefulWidget {
+  final String userName;
+
+  const WeatherInputPage({Key? key, required this.userName}) : super(key: key);
+
+  @override
+  _WeatherInputPageState createState() => _WeatherInputPageState();
+}
+
+class _WeatherInputPageState extends State<WeatherInputPage> {
+  DateTime? selectedDateTime;
+  Map<String, dynamic>? weatherData;
+
+  Future<Map<String, dynamic>> fetchWeather(String city) async {
+    const String apiKey = '0e633ad365dfe6dc4483d7463535a168';
+    final String apiUrl =
+        'https://api.openweathermap.org/data/2.5/weather?q=$city&appid=$apiKey&units=metric';
+
+    final response = await http.get(Uri.parse(apiUrl));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to load weather data');
+    }
+  }
+
+  Future<void> getCurrentWeather() async {
+    try {
+      Map<String, dynamic> data = await fetchWeather('Gobichettipalayam');
+      setState(() {
+        weatherData = data;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching weather: $e')),
+      );
+    }
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('userName');
+    await prefs.remove('mobileNumber');
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WelcomePage(),
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    getCurrentWeather(); // Fetch current weather when the screen loads
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Weather App',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.exit_to_app),
+            onPressed: () => _logout(context), // Logout functionality
+          ),
+        ],
+        backgroundColor: Colors.blueAccent,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue, Colors.deepPurpleAccent],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Welcome, ${widget.userName}!',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(color: Colors.black45, blurRadius: 4),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Display city name
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 6,
+                        offset: Offset(2, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.location_city, color: Colors.blueAccent),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Gobichettipalayam',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Date and Time Picker
+                GestureDetector(
+                  onTap: () {
+                    dtp.DatePicker.showDateTimePicker(
+                      context,
+                      theme: dtp.DatePickerTheme(
+                        backgroundColor: Colors.white,
+                        itemStyle: const TextStyle(color: Colors.black, fontSize: 18),
+                        doneStyle: const TextStyle(color: Colors.blue, fontSize: 16),
+                      ),
+                      showTitleActions: true,
+                      onConfirm: (date) {
+                        setState(() {
+                          selectedDateTime = date;
+                        });
+                      },
+                      currentTime: DateTime.now(),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                          offset: Offset(2, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.calendar_today, color: Colors.blueAccent),
+                        const SizedBox(width: 10),
+                        Text(
+                          selectedDateTime == null
+                              ? 'Select Date & Time'
+                              : '${selectedDateTime!.day}/${selectedDateTime!.month}/${selectedDateTime!.year}  ${selectedDateTime!.hour}:${selectedDateTime!.minute}',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Get Weather Button
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      Map<String, dynamic> newWeatherData =
+                      await fetchWeather('Gobichettipalayam');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              WeatherDetails(weatherData: newWeatherData),
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error fetching weather: $e')),
+                      );
+                    }
+                  },
+                  child: const Text('Get Weather'),
+                ),
+
+                const SizedBox(height: 15),
+
+                // Current Weather Button
+                ElevatedButton(
+                  onPressed: getCurrentWeather,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orangeAccent,
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Current Weather',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Display Current Weather Data
+                if (weatherData != null)
+                  Column(
+                    children: [
+                      Text(
+                        'Temperature: ${weatherData!['main']['temp']}°C',
+                        style: const TextStyle(fontSize: 18, color: Colors.white),
+                      ),
+                      Text(
+                        'Condition: ${weatherData!['weather'][0]['description']}',
+                        style: const TextStyle(fontSize: 18, color: Colors.white),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+class WeatherDetails extends StatelessWidget {
+  final Map<String, dynamic> weatherData;
+
+  const WeatherDetails({Key? key, required this.weatherData}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    String cityName = weatherData['name'] ?? 'Unknown City';
+    double temperature = weatherData['main']['temp']?.toDouble() ?? 0.0;
+    int humidity = weatherData['main']['humidity'] ?? 0;
+    double windSpeed = weatherData['wind']['speed']?.toDouble() ?? 0.0;
+    double windDirection = weatherData['wind']['deg']?.toDouble() ?? 0.0;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Weather in $cityName'),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.indigo, Colors.black],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch, // Valid here for Column
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                  child: SpeedometerWith3DEffect(
+                    label: 'Temperature',
+                    value: temperature,
+                    minValue: -50,
+                    maxValue: 50,
+                    unit: '°C',
+                    icon: Icons.wb_sunny,
+                    meterColor: Colors.red,
+                    needleColor: Colors.orange,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                  child: SpeedometerWith3DEffect(
+                    label: 'Humidity',
+                    value: humidity.toDouble(),
+                    minValue: 0,
+                    maxValue: 100,
+                    unit: '%',
+                    icon: Icons.water_drop,
+                    meterColor: Colors.blue,
+                    needleColor: Colors.lightBlue,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                  child: SpeedometerWith3DEffect(
+                    label: 'Wind Speed',
+                    value: windSpeed,
+                    minValue: 0,
+                    maxValue: 200,
+                    unit: 'km/h',
+                    icon: Icons.air,
+                    meterColor: Colors.green,
+                    needleColor: Colors.white,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                  child: WindDirectionCompass(
+                    windDirection: windDirection,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+
+    );
+  }
+}
+
+class SpeedometerWith3DEffect extends StatefulWidget {
+  final String label;
+  final double value;
+  final double minValue;
+  final double maxValue;
+  final String unit;
+  final IconData icon;
+  final Color meterColor;
+  final Color needleColor;
+
+  const SpeedometerWith3DEffect({
+    Key? key,
+    required this.label,
+    required this.value,
+    required this.minValue,
+    required this.maxValue,
+    required this.unit,
+    required this.icon,
+    required this.meterColor,
+    required this.needleColor,
+  }) : super(key: key);
+
+  @override
+  _SpeedometerWith3DEffectState createState() =>
+      _SpeedometerWith3DEffectState();
+}
+
+class _SpeedometerWith3DEffectState extends State<SpeedometerWith3DEffect>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    );
+    _animation = Tween<double>(begin: widget.minValue, end: widget.value)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Column(
+          children: [
+            Text(
+              widget.label,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Stack(
+              children: [
+                Container(
+                  height: 200,
+                  width: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        widget.meterColor.withOpacity(0.5),
+                        widget.meterColor.withOpacity(0.8),
+                      ],
+                      radius: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 10,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: CustomPaint(
+                    size: Size(200, 200),
+                    painter: SpeedometerPainter(
+                      animationValue: _animation.value,
+                      minValue: widget.minValue,
+                      maxValue: widget.maxValue,
+                      needleColor: widget.needleColor,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  child: Icon(
+                    widget.icon,
+                    color: widget.needleColor,
+                    size: 40,
+                  ),
+                ),
+                Positioned(
+                  bottom: 10,
+                  child: Text(
+                    '${_animation.value.toStringAsFixed(0)} ${widget.unit}',
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: widget.needleColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class SpeedometerPainter extends CustomPainter {
+  final double animationValue;
+  final double minValue;
+  final double maxValue;
+  final Color needleColor;
+
+  SpeedometerPainter({
+    required this.animationValue,
+    required this.minValue,
+    required this.maxValue,
+    required this.needleColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint meterPaint = Paint()
+      ..color = Colors.grey
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10;
+
+    final Paint needlePaint = Paint()
+      ..color = needleColor
+      ..style = PaintingStyle.fill;
+
+    final Paint needleBasePaint = Paint()
+      ..color = Colors.black
+      ..style = PaintingStyle.fill;
+
+    final double centerX = size.width / 2;
+    final double centerY = size.height / 2;
+    final double radius = size.width / 2;
+
+    // Draw the circular meter
+    canvas.drawCircle(Offset(centerX, centerY), radius - 10, meterPaint);
+
+    // Calculate needle angle
+    final double normalizedValue =
+        (animationValue - minValue) / (maxValue - minValue);
+    final double angle = normalizedValue * math.pi;
+
+    // Draw the needle
+    final double needleLength = radius - 20; // Length of the needle
+    final double needleX = centerX + needleLength * math.cos(angle - math.pi / 2);
+    final double needleY = centerY + needleLength * math.sin(angle - math.pi / 2);
+
+    canvas.drawLine(
+      Offset(centerX, centerY),
+      Offset(needleX, needleY),
+      needlePaint,
+    );
+
+    // Draw needle base circle
+    canvas.drawCircle(Offset(centerX, centerY), 8, needleBasePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
+}
+
+class WindDirectionCompass extends StatelessWidget {
+  final double windDirection; // Wind direction in degrees (0° is North)
+
+  const WindDirectionCompass({Key? key, required this.windDirection})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Text(
+          'Wind Direction',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            // Compass Circle
+            Container(
+              height: 200,
+              width: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.grey.shade900,
+                    Colors.grey.shade700,
+                  ],
+                  radius: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+            ),
+            // Directional Labels (N, E, S, W)
+            const Positioned(
+              top: 10,
+              child: Text(
+                'N',
+                style: TextStyle(fontSize: 20, color: Colors.white),
+              ),
+            ),
+            const Positioned(
+              bottom: 10,
+              child: Text(
+                'S',
+                style: TextStyle(fontSize: 20, color: Colors.white),
+              ),
+            ),
+            const Positioned(
+              right: 10,
+              child: Text(
+                'E',
+                style: TextStyle(fontSize: 20, color: Colors.white),
+              ),
+            ),
+            const Positioned(
+              left: 10,
+              child: Text(
+                'W',
+                style: TextStyle(fontSize: 20, color: Colors.white),
+              ),
+            ),
+            // Compass Needle
+            Transform.rotate(
+              angle: (windDirection - 90) * math.pi / 180, // Adjust rotation
+              child: CustomPaint(
+                size: const Size(200, 200),
+                painter: CompassNeedlePainter(),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '${windDirection.toStringAsFixed(0)}°',
+          style: const TextStyle(
+            fontSize: 20,
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class CompassNeedlePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint needlePaint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.fill
+      ..strokeWidth = 2;
+
+    final Paint needleBasePaint = Paint()
+      ..color = Colors.black
+      ..style = PaintingStyle.fill;
+
+    final double centerX = size.width / 2;
+    final double centerY = size.height / 2;
+
+    final double needleLength = size.width / 2 - 10;
+
+    // Draw the needle
+    final Path needlePath = Path()
+      ..moveTo(centerX, centerY - needleLength) // Tip of the needle
+      ..lineTo(centerX - 5, centerY) // Left side of the base
+      ..lineTo(centerX + 5, centerY) // Right side of the base
+      ..close();
+
+    canvas.drawPath(needlePath, needlePaint);
+
+    // Draw needle base circle
+    canvas.drawCircle(Offset(centerX, centerY), 8, needleBasePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
+  }
+}
